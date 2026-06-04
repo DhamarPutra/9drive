@@ -88,6 +88,11 @@ export function AllFilesPage() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState>({ open: false, fileName: '', percent: 0, status: 'uploading', files: [] })
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('viewer')
+  const [inviteMessage, setInviteMessage] = useState('')
+  const [inviting, setInviting] = useState(false)
   const previewVideoRef = useRef<HTMLVideoElement | null>(null)
 
   async function loadFiles() {
@@ -342,6 +347,30 @@ export function AllFilesPage() {
     setContextMenu({ x: 0, y: 0, file: null })
   }
 
+  async function inviteToFile() {
+    if (!activeFile?.id) return
+    setInviteOpen(true)
+    setContextMenu({ x: 0, y: 0, file: null })
+  }
+
+  async function sendInvite(event: FormEvent) {
+    event.preventDefault()
+    if (!activeFile?.id) return
+    setInviting(true)
+    setInviteMessage('')
+    try {
+      await apiFetch('/invites', { method: 'POST', body: JSON.stringify({ email: inviteEmail, role: inviteRole, targetType: 'file', targetId: activeFile.id }) })
+      setInviteEmail('')
+      setInviteRole('viewer')
+      setInviteMessage('Invite saved. Member will appear in Shared.')
+      window.dispatchEvent(new Event('9drive:invites-changed'))
+    } catch (error) {
+      setInviteMessage(error instanceof Error ? error.message : 'Failed to send invite')
+    } finally {
+      setInviting(false)
+    }
+  }
+
   async function copyShareLink() {
     await navigator.clipboard.writeText(shareUrl)
     setCopiedShareLink(true)
@@ -403,7 +432,7 @@ export function AllFilesPage() {
       {files.length === 0 ? <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">{activeFolder ? 'No files in this folder yet.' : 'No uploaded files yet. Connect Google Drive in Settings, then upload a file.'}</p> : <FileTable files={files} selectedFileIds={selectedFileIds} allSelected={allVisibleSelected} onToggleFile={toggleFileSelection} onToggleAll={toggleAllVisibleFiles} onFileContextMenu={openContext} />}
       </div>
       <EmptyAreaContextMenu x={emptyContextMenu.x} y={emptyContextMenu.y} open={emptyContextMenu.open} canPasteFolder={Boolean(cutFolder)} onClose={() => setEmptyContextMenu({ x: 0, y: 0, open: false })} onUpload={() => { setUploadOpen(true); setEmptyContextMenu({ x: 0, y: 0, open: false }) }} onCreateFolder={() => { setFolderOpen(true); setEmptyContextMenu({ x: 0, y: 0, open: false }) }} onPasteFolder={() => { pasteFolder().catch((error) => setMessage(error instanceof Error ? error.message : 'Failed to paste folder')); setEmptyContextMenu({ x: 0, y: 0, open: false }) }} />
-      <FileContextMenu x={contextMenu.x} y={contextMenu.y} file={contextMenu.file} onClose={() => setContextMenu({ x: 0, y: 0, file: null })} onView={viewFile} onDownload={downloadFile} onRename={() => { setRenameValue(activeFile?.name ?? ''); setRenameOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onMove={() => { setMoveOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onDetails={() => { setDetailOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onShare={shareFile} onDelete={() => { setDeleteOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} />
+      <FileContextMenu x={contextMenu.x} y={contextMenu.y} file={contextMenu.file} onClose={() => setContextMenu({ x: 0, y: 0, file: null })} onView={viewFile} onDownload={downloadFile} onRename={() => { setRenameValue(activeFile?.name ?? ''); setRenameOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onMove={() => { setMoveOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onDetails={() => { setDetailOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} onShare={shareFile} onInvite={inviteToFile} onDelete={() => { setDeleteOpen(true); setContextMenu({ x: 0, y: 0, file: null }) }} />
       <FolderContextMenu x={folderContextMenu.x} y={folderContextMenu.y} folder={folderContextMenu.folder} onClose={() => setFolderContextMenu({ x: 0, y: 0, folder: null })} onCut={() => cutSelectedFolder(activeFolderForMenu)} onRename={() => { setFolderRenameValue(activeFolderForMenu?.name ?? ''); setFolderRenameColor(activeFolderForMenu?.color ?? 'text-blue-500'); setFolderRenameOpen(true); setFolderContextMenu({ x: 0, y: 0, folder: null }) }} onDelete={() => { setFolderDeleteOpen(true); setFolderContextMenu({ x: 0, y: 0, folder: null }) }} />
       <FileDetailsDrawer open={detailOpen} file={activeFile} onClose={() => setDetailOpen(false)} />
 
@@ -433,6 +462,14 @@ export function AllFilesPage() {
       <DummyModal open={shareOpen} title="Share Link" description={activeFile?.name ?? ''} onClose={() => setShareOpen(false)}><div className="grid gap-4"><Input value={shareUrl} readOnly /><div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setShareOpen(false)}>Close</Button><Button onClick={copyShareLink}>{copiedShareLink ? <CheckCircle className="h-4 w-4" /> : null}{copiedShareLink ? 'Copied!' : 'Copy Link'}</Button></div>{copiedShareLink ? <p className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">Share link copied to clipboard.</p> : null}</div></DummyModal>
       <DummyModal open={folderRenameOpen} title="Rename Folder" description={activeFolderForMenu?.name ?? ''} onClose={() => setFolderRenameOpen(false)}><form onSubmit={renameFolder} className="grid gap-4"><Input value={folderRenameValue} onChange={(event) => setFolderRenameValue(event.target.value)} required /><div className="grid gap-2 text-sm font-semibold"><span>Folder Color</span><div className="flex flex-wrap gap-2">{folderColors.map((color) => <button key={color} type="button" onClick={() => setFolderRenameColor(color)} className={folderRenameColor === color ? 'h-8 w-8 rounded-lg border-2 border-blue-600 bg-slate-50' : 'h-8 w-8 rounded-lg border border-slate-200 bg-slate-50'}><Folder className={`mx-auto h-5 w-5 fill-current ${color}`} /></button>)}</div></div><div className="flex justify-end gap-3"><Button type="button" variant="outline" onClick={() => setFolderRenameOpen(false)}>Cancel</Button><Button>Rename</Button></div></form></DummyModal>
       <DummyModal open={folderDeleteOpen} title="Delete Folder" description={`Delete virtual folder ${activeFolderForMenu?.name ?? ''}? Files inside will remain uploaded.`} onClose={() => setFolderDeleteOpen(false)}><div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setFolderDeleteOpen(false)}>Cancel</Button><Button variant="danger" onClick={deleteFolder}>Delete</Button></div></DummyModal>
+      <DummyModal open={inviteOpen} title="Invite Member" description={`Share ${activeFile?.name ?? 'file'} with a team member.`} onClose={() => setInviteOpen(false)}>
+        <form onSubmit={sendInvite} className="grid gap-4">
+          <label className="grid gap-2 text-sm font-semibold">Email Address<Input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="member@example.com" required /></label>
+          <label className="grid gap-2 text-sm font-semibold">Role<select className="h-11 rounded-xl border border-slate-200 px-3 text-sm" value={inviteRole} onChange={(event) => setInviteRole(event.target.value)}><option value="viewer">Can view</option><option value="editor">Can edit</option></select></label>
+          {inviteMessage ? <p className="rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-700">{inviteMessage}</p> : null}
+          <div className="flex justify-end gap-3 pt-2"><Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button><Button disabled={inviting}>{inviting ? 'Sending...' : 'Send Invite'}</Button></div>
+        </form>
+      </DummyModal>
       <DummyModal open={previewOpen} title="File Preview" description={activeFile?.name ?? ''} onClose={closePreview} className="max-w-5xl">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
           {activeFile?.mimeType?.startsWith('image/') ? <img src={previewUrl} alt={activeFile.name} className="max-h-[70vh] w-full object-contain" /> : null}
