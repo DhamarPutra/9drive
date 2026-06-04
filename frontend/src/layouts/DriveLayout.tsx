@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  Archive,
   Bell,
   Crown,
   FileArchive,
@@ -15,7 +14,6 @@ import {
   Share2,
   SlidersHorizontal,
   Star,
-  Trash2,
   UserPlus,
   X,
 } from 'lucide-react'
@@ -31,9 +29,7 @@ const menu = [
   { label: 'All Files', icon: FileArchive, href: '/all-files' },
   { label: 'Quota Tracker', icon: Gauge, href: '/quota' },
   { label: 'Shared With Me', icon: Share2, href: '/shared' },
-  { label: 'Recent', icon: Archive, href: '/recent' },
   { label: 'Starred', icon: Star, href: '/starred' },
-  { label: 'Archived', icon: HardDrive, href: '/archived' },
 ]
 
 type StorageSummary = {
@@ -95,7 +91,6 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
         <NavLink to="/settings" onClick={onNavigate} className={({ isActive }) => cn('inline-flex h-11 w-full items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all', isActive ? 'bg-slate-100 text-slate-950 shadow-sm' : 'text-slate-700 hover:bg-slate-100')}>
           <Settings className="h-5 w-5" />Setting
         </NavLink>
-        <Button variant="ghost" className="w-full justify-start"><Trash2 className="h-5 w-5" />Delete</Button>
         <Button variant="danger" className="w-full justify-start" onClick={onLogout}><LogOut className="h-5 w-5" />Log Out</Button>
       </div>
 
