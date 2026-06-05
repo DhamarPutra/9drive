@@ -27,6 +27,10 @@ Live preview: https://9drive.zenhosta.com
 
 ![9Drive shared file preview](https://i.ibb.co.com/QLpYGmx/image.png)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=zenhosta/9drive&type=Date)](https://www.star-history.com/#zenhosta/9drive&Date)
+
 ## Project Structure
 
 ```txt
