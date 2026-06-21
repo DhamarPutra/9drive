@@ -199,8 +199,20 @@ export function AllFilesPage() {
         pasteFolder().catch((error) => setMessage(error instanceof Error ? error.message : 'Failed to paste folder'))
       }
     }
+    
+    function onOpenMoveShortcut(e: Event) {
+      const file = (e as CustomEvent).detail as FileItem
+      setActiveFile(file)
+      setSelectedFolderId(file.folderId || '')
+      setMoveOpen(true)
+    }
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('9drive:open-move-modal', onOpenMoveShortcut)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('9drive:open-move-modal', onOpenMoveShortcut)
+    }
   }, [activeFolderForMenu, cutFolder, activeFolderId])
 
   useEffect(() => {

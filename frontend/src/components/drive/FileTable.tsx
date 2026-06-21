@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react'
 import { AvatarStack } from '@/components/drive/AvatarStack'
 import { FileIcon } from '@/components/drive/FileIcon'
 import type { FileItem } from '@/data/drive-data'
+import { apiFetch } from '@/lib/api'
 
 export function FileTable({ files, mode = 'default', selectedFileIds = new Set<string>(), allSelected = false, onFileContextMenu, onToggleFile, onToggleAll }: { files: FileItem[]; mode?: 'default' | 'shared' | 'recent' | 'starred' | 'archived'; selectedFileIds?: Set<string>; allSelected?: boolean; onFileContextMenu?: (event: MouseEvent<HTMLElement>, file: FileItem) => void; onToggleFile?: (file: FileItem) => void; onToggleAll?: () => void }) {
   return (
@@ -54,7 +55,7 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
         </thead>
         <tbody>
           {files.map((file) => (
-            <tr key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={(event) => onFileContextMenu?.(event, file)} onClick={() => onToggleFile?.(file)} className={selectedFileIds.has(file.id ?? '') ? 'border-b border-blue-100 bg-blue-50 transition hover:bg-blue-50 cursor-grab active:cursor-grabbing' : 'border-b border-slate-200 transition hover:bg-slate-50 cursor-grab active:cursor-grabbing'}>
+            <tr key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={(event) => onFileContextMenu?.(event, file)} onClick={() => onToggleFile?.(file)} className={selectedFileIds.has(file.id ?? '') ? 'group border-b border-blue-100 bg-blue-50 transition hover:bg-blue-50 cursor-grab active:cursor-grabbing' : 'group border-b border-slate-200 transition hover:bg-slate-50 cursor-grab active:cursor-grabbing'}>
               <td className="py-4"><input type="checkbox" className="h-4 w-4 accent-blue-600" checked={selectedFileIds.has(file.id ?? '')} onChange={() => onToggleFile?.(file)} onClick={(event) => event.stopPropagation()} /></td>
               <td className="py-4 font-semibold">
                 <span className="flex min-w-0 items-center gap-3">
@@ -69,7 +70,41 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
               <td className="py-4 text-slate-500">{mode === 'archived' ? file.location : file.date}</td>
               <td className="py-4 text-slate-500">{file.size}</td>
               <td className="py-4 text-slate-500"><span className="flex items-center gap-3"><AvatarStack count={file.shared} />{file.access}</span></td>
-              <td className="py-4 text-right"><button className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" onClick={(event) => { event.stopPropagation(); onFileContextMenu?.(event, file) }} aria-label={`Open ${file.name} menu`}><MoreVertical className="h-5 w-5" /></button></td>
+              <td className="py-4 text-right">
+                <div className="flex items-center justify-end gap-2 group-hover:opacity-100">
+                  {/* Action shortcuts visible on row hover */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex gap-2">
+                    <button 
+                      title="Copy Link" 
+                      onClick={async (event) => {
+                        event.stopPropagation();
+                        try {
+                          const data = await apiFetch<{ url: string }>(`/files/${file.id}/share`, { method: 'POST' });
+                          await navigator.clipboard.writeText(data.url);
+                          alert('Share link copied to clipboard!');
+                        } catch (err) {
+                          alert('Failed to copy share link.');
+                        }
+                      }} 
+                      className="inline-flex h-8 px-2.5 items-center justify-center rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                    >
+                      Copy Link
+                    </button>
+                    <button 
+                      title="Move File" 
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        // We dispatch a custom event to open the move modal in AllFilesPage
+                        window.dispatchEvent(new CustomEvent('9drive:open-move-modal', { detail: file }));
+                      }} 
+                      className="inline-flex h-8 px-2.5 items-center justify-center rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                    >
+                      Move
+                    </button>
+                  </div>
+                  <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 shrink-0" onClick={(event) => { event.stopPropagation(); onFileContextMenu?.(event, file) }} aria-label={`Open ${file.name} menu`}><MoreVertical className="h-5 w-5" /></button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
