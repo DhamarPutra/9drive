@@ -37,7 +37,25 @@ export function SettingsPage() {
   const [disconnectingAccountId, setDisconnectingAccountId] = useState<string | null>(null)
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null)
   const [profileImageUrl, setProfileImageUrl] = useState('')
+  const [avatarError, setAvatarError] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [updatingSystem, setUpdatingSystem] = useState(false)
+
+  async function runSystemUpdate() {
+    setUpdatingSystem(true)
+    setMessage('')
+    try {
+      const data = await apiFetch<{ message: string }>('/system/update', { method: 'POST' })
+      setMessage(data.message || 'System updated successfully. Reloading...')
+      setTimeout(() => {
+        window.location.reload()
+      }, 3000)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'System update failed')
+    } finally {
+      setUpdatingSystem(false)
+    }
+  }
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? accounts[0] ?? null
 
   async function load() {
@@ -50,6 +68,7 @@ export function SettingsPage() {
   }, [])
 
   useEffect(() => {
+    setAvatarError(false)
     getGravatarUrl(user?.email, 96).then(setProfileImageUrl).catch(() => setProfileImageUrl(''))
   }, [user?.email])
 
@@ -149,7 +168,18 @@ export function SettingsPage() {
         <div className="grid gap-6">
           <Card className="p-4 sm:p-5">
             <div className="flex items-center gap-4 sm:gap-5">
-              <img src={profileImageUrl} alt="User avatar" className="h-16 w-16 rounded-2xl object-cover sm:h-20 sm:w-20" />
+              {!profileImageUrl || avatarError ? (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-bold text-white shadow-sm border border-blue-400/20 sm:h-20 sm:w-20">
+                  {(user?.name ?? user?.email ?? 'U').trim().charAt(0).toUpperCase()}
+                </div>
+              ) : (
+                <img 
+                  src={profileImageUrl} 
+                  alt="User avatar" 
+                  className="h-16 w-16 rounded-2xl object-cover sm:h-20 sm:w-20" 
+                  onError={() => setAvatarError(true)}
+                />
+              )}
               <div className="flex-1"><h2 className="text-xl font-extrabold">{user?.name ?? 'User'}</h2><p className="text-sm text-slate-500">{user?.email ?? '-'}</p></div>
             </div>
           </Card>
@@ -191,6 +221,29 @@ export function SettingsPage() {
                   </div>
                 </div> : null}
               </>}
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="h-6 w-6 text-blue-600" />
+                  <h2 className="text-xl font-extrabold">System Update</h2>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Pull the latest code from GitHub. Dev servers will automatically restart.
+                </p>
+              </div>
+              <Button 
+                className="w-full sm:w-36" 
+                variant="outline" 
+                onClick={runSystemUpdate} 
+                disabled={updatingSystem}
+              >
+                <RefreshCw className={updatingSystem ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+                {updatingSystem ? 'Updating...' : 'Update Code'}
+              </Button>
             </div>
           </Card>
         </div>

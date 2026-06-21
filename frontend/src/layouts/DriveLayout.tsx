@@ -112,6 +112,7 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
   const total = Number(storage?.totalBytes ?? 0)
   const progress = total > 0 ? Math.min(100, (used / total) * 100) : 0
   const [profileImageUrl, setProfileImageUrl] = useState('')
+  const [avatarError, setAvatarError] = useState(false)
   const items = [
     ['Photo', formatBytes(breakdown.photo), 'bg-lime-500'],
     ['Video', formatBytes(breakdown.video), 'bg-yellow-400'],
@@ -120,6 +121,7 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
   ]
 
   useEffect(() => {
+    setAvatarError(false)
     getGravatarUrl(user?.email, 64).then(setProfileImageUrl).catch(() => setProfileImageUrl(''))
   }, [user?.email])
 
@@ -131,7 +133,18 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
       </div>
 
       <div className="flex items-center gap-2.5 border-y border-slate-200/60 py-3 my-3">
-        <img src={profileImageUrl} alt="User avatar" className="h-8 w-8 rounded-full border border-slate-200 object-cover" />
+        {!profileImageUrl || avatarError ? (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white shadow-sm border border-blue-400/20">
+            {(user?.name ?? user?.email ?? 'U').trim().charAt(0).toUpperCase()}
+          </div>
+        ) : (
+          <img 
+            src={profileImageUrl} 
+            alt="User avatar" 
+            className="h-8 w-8 rounded-full border border-slate-200 object-cover" 
+            onError={() => setAvatarError(true)}
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold text-slate-900 leading-none">{user?.name ?? 'User'}</p>
           <p className="truncate text-xs text-slate-500 mt-1">{user?.email ?? 'Loading...'}</p>
@@ -207,7 +220,7 @@ export function DriveLayout() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('9drive:theme')
     if (saved === 'light' || saved === 'dark') return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return 'dark'
   })
 
   // Advanced search states
