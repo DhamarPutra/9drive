@@ -25,7 +25,6 @@ import { useDriveLayoutActions } from '@/layouts/DriveLayout'
 type BackendFile = { id: string; name: string; mimeType: string; sizeBytes: string; createdAt: string; folderId?: string | null; connectedAccount?: { email: string; provider: string }; folder?: { id: string; name: string } | null }
 type BackendFolder = { id: string; name: string; color: string; iconUrl?: string | null; parentId?: string | null; updatedAt: string }
 
-type SyncGoogleResult = { accounts: number; created: number; updated: number; deleted: number }
 type FileViewMode = 'list' | 'grid'
 
 const fileViewStorageKey = '9drive:all-files-view-mode'
@@ -279,8 +278,17 @@ export function AllFilesPage() {
     setSyncingDrive(true)
     setMessage('')
     try {
-      const result = await apiFetch<SyncGoogleResult>('/files/sync-google', { method: 'POST', body: JSON.stringify({}) })
-      setMessage(`Google Drive synced. ${result.created} added, ${result.updated} updated, ${result.deleted} removed across ${result.accounts} account${result.accounts === 1 ? '' : 's'}.`)
+      const response = await apiFetch<{ results: { created: number; updated: number; deleted: number }[] }>('/files/sync-google', { method: 'POST', body: JSON.stringify({}) })
+      
+      let created = 0, updated = 0, deleted = 0
+      for (const res of response.results) {
+        created += res.created
+        updated += res.updated
+        deleted += res.deleted
+      }
+      const accounts = response.results.length
+
+      setMessage(`Google Drive synced. ${created} added, ${updated} updated, ${deleted} removed across ${accounts} account${accounts === 1 ? '' : 's'}.`)
       await loadAll()
       window.dispatchEvent(new Event('9drive:storage-changed'))
     } catch (error) {
