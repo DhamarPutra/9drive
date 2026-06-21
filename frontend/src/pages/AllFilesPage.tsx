@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type MouseEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Archive, CheckCircle, ChevronDown, ClipboardPaste, FolderInput, FolderPlus, LayoutGrid, List, MoreVertical, RefreshCw, Star, Trash2, Upload, X } from 'lucide-react'
+import { Archive, CheckCircle, ChevronDown, ClipboardPaste, Download, FolderInput, FolderPlus, LayoutGrid, List, MoreVertical, RefreshCw, Star, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DummyModal } from '@/components/drive/DummyModal'
@@ -25,7 +25,7 @@ type BackendFolder = { id: string; name: string; color: string; iconUrl?: string
 type UploadProgressStatus = 'uploading' | 'done' | 'error' | 'partial'
 type UploadProgressFile = { name: string; size: number; percent: number; status: UploadProgressStatus }
 type UploadProgressState = { open: boolean; fileName: string; percent: number; status: UploadProgressStatus; files: UploadProgressFile[] }
-type UploadResult = { file?: unknown; files?: unknown[]; failed?: Array<{ fileName?: string }> }
+
 type SyncGoogleResult = { accounts: number; created: number; updated: number; deleted: number }
 type FileViewMode = 'list' | 'grid'
 
@@ -56,15 +56,7 @@ function mapFolder(folder: BackendFolder): FolderItem {
   return { id: folder.id, name: folder.name, color: folder.color, iconUrl: folder.iconUrl, parentId: folder.parentId, updated: `Updated ${formatDate(folder.updatedAt)}` }
 }
 
-function estimateUploadProgress(files: File[], percent: number, status: UploadProgressStatus): UploadProgressFile[] {
-  const totalBytes = Math.max(files.reduce((total, file) => total + file.size, 0), 1)
-  let loadedBytes = (totalBytes * percent) / 100
-  return files.map((file) => {
-    const loadedForFile = Math.min(file.size, Math.max(0, loadedBytes))
-    loadedBytes -= file.size
-    return { name: file.name, size: file.size, percent: status === 'done' ? 100 : Math.min(99, Math.round((loadedForFile / Math.max(file.size, 1)) * 100)), status }
-  })
-}
+
 
 function FolderAppearanceFields({ color, iconUrl, onColorChange, onIconChange }: { color: string; iconUrl: string; onColorChange: (color: string) => void; onIconChange: (iconUrl: string) => void }) {
   const normalizedColor = normalizeFolderColor(color)
@@ -203,37 +195,181 @@ export function AllFilesPage() {
     await loadFolders()
   }
 
+  // State to track resumable upload sessions to support Retry actions
+  const [resumableSessions, setResumableSessions] = useState<Record<string, { sessionId: string; file: File; folderId?: string }>>({})
+
   async function uploadFile(event: FormEvent) {
     event.preventDefault()
     if (selectedFiles.length === 0) return
     setLoading(true)
     setMessage('')
-    try {
-      const form = new FormData()
-      const targetFolderId = activeFolderId || selectedFolderId
-      const filesMeta = selectedFiles.map((file, index) => ({ fieldName: `file-${index}`, fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: String(file.size), folderId: targetFolderId || undefined }))
-      form.append('filesMeta', JSON.stringify(filesMeta))
-      selectedFiles.forEach((file, index) => form.append(`file-${index}`, file))
-      const uploadingFiles = [...selectedFiles]
-      setUploadProgress({ open: true, fileName: uploadingFiles.length === 1 ? uploadingFiles[0].name : `${uploadingFiles.length} files`, percent: 0, status: 'uploading', files: estimateUploadProgress(uploadingFiles, 0, 'uploading') })
-      const uploadResult = await uploadWithProgress(form, (percent) => setUploadProgress((current) => ({ ...current, percent, files: estimateUploadProgress(uploadingFiles, percent, 'uploading') })))
-      const uploadedCount = uploadResult.files?.length ?? (uploadResult.file ? 1 : selectedFiles.length)
-      const failedCount = uploadResult.failed?.length ?? 0
-      const failedNames = new Set((uploadResult.failed ?? []).map((file) => file.fileName).filter(Boolean))
-      setUploadProgress((current) => ({ ...current, percent: 100, status: failedCount > 0 ? 'partial' : 'done', files: uploadingFiles.map((file) => ({ name: file.name, size: file.size, percent: failedNames.has(file.name) ? 0 : 100, status: failedNames.has(file.name) ? 'error' : 'done' })) }))
-      setSelectedFiles([])
-      setSelectedFolderId('')
-      setUploadOpen(false)
-      setMessage(failedCount > 0 ? `${uploadedCount} files uploaded. ${failedCount} failed.` : selectedFiles.length === 1 ? 'File uploaded to Google Drive.' : `${uploadedCount} files uploaded to Google Drive.`)
-      await loadFiles()
-      window.dispatchEvent(new Event('9drive:storage-changed'))
-    } catch (error) {
-      setUploadProgress((current) => ({ ...current, status: 'error', files: current.files.map((file) => ({ ...file, status: 'error' })) }))
-      setMessage(error instanceof Error ? error.message : 'Upload failed')
-    } finally {
-      setLoading(false)
+
+    const uploadingFiles = [...selectedFiles]
+    const targetFolderId = activeFolderId || selectedFolderId
+
+    // Setup initial status
+    setUploadProgress({
+      open: true,
+      fileName: uploadingFiles.length === 1 ? uploadingFiles[0].name : `${uploadingFiles.length} files`,
+      percent: 0,
+      status: 'uploading',
+      files: uploadingFiles.map(f => ({ name: f.name, size: f.size, percent: 0, status: 'uploading' }))
+    })
+
+    setSelectedFiles([])
+    setSelectedFolderId('')
+    setUploadOpen(false)
+
+    // Upload files sequentially or concurrently
+    for (let i = 0; i < uploadingFiles.length; i++) {
+      const file = uploadingFiles[i]
+      try {
+        await uploadSingleFileResumable(file, targetFolderId, (filePercent) => {
+          setUploadProgress((current) => {
+            const nextFiles = [...current.files]
+            if (nextFiles[i]) {
+              nextFiles[i] = { ...nextFiles[i], percent: filePercent, status: filePercent >= 100 ? 'done' : 'uploading' }
+            }
+            const overallPercent = Math.round(nextFiles.reduce((sum, f) => sum + f.percent, 0) / nextFiles.length)
+            return {
+              ...current,
+              percent: overallPercent,
+              files: nextFiles
+            }
+          })
+        })
+      } catch (err) {
+        console.error('File upload failed:', file.name, err)
+        setUploadProgress((current) => {
+          const nextFiles = [...current.files]
+          if (nextFiles[i]) {
+            nextFiles[i] = { ...nextFiles[i], status: 'error' }
+          }
+          return {
+            ...current,
+            status: 'partial',
+            files: nextFiles
+          }
+        })
+      }
+    }
+
+    // Wrap up
+    await loadFiles()
+    window.dispatchEvent(new Event('9drive:storage-changed'))
+    setLoading(false)
+  }
+
+  async function uploadSingleFileResumable(file: File, folderId: string | null, onProgress: (percent: number) => void, sessionIdToRetry?: string) {
+    const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB chunks (must be multiple of 256KB for Google Drive)
+    let sessionId = sessionIdToRetry || ''
+    let startOffset = 0
+
+    // 1. Initialize or get status
+    if (!sessionId) {
+      const initData = await apiFetch<{ sessionId: string; provider: string }>('/uploads/resumable/init', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: String(file.size),
+          folderId: folderId || undefined
+        })
+      })
+      sessionId = initData.sessionId
+      // Save session mapping to state in case it fails and needs retry
+      setResumableSessions(prev => ({
+        ...prev,
+        [file.name]: { sessionId, file, folderId: folderId || undefined }
+      }))
+    } else {
+      const statusData = await apiFetch<{ status: string; offset: string }>(`/uploads/resumable/status/${sessionId}`)
+      startOffset = Number(statusData.offset)
+      if (statusData.status === 'completed') {
+        onProgress(100)
+        return
+      }
+    }
+
+    // 2. Upload chunk by chunk
+    while (startOffset < file.size) {
+      const endOffset = Math.min(startOffset + CHUNK_SIZE, file.size)
+      const chunk = file.slice(startOffset, endOffset)
+
+      // We use raw fetch with authorization header for binary stream upload
+      const response = await fetch(`${API_URL}/uploads/resumable/chunk/${sessionId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${getAccessToken()}`,
+          'Content-Range': `bytes ${startOffset}-${endOffset - 1}/${file.size}`,
+          'Content-Length': String(chunk.size)
+        },
+        body: chunk
+      })
+
+      if (!response.ok) {
+        throw new Error('Chunk upload failed')
+      }
+
+      const resData = await response.json() as { status: string; offset?: string }
+      if (resData.status === 'completed') {
+        onProgress(100)
+        break
+      }
+
+      startOffset = Number(resData.offset)
+      const percent = Math.min(99, Math.round((startOffset / file.size) * 100))
+      onProgress(percent)
     }
   }
+
+  async function retryFailedUpload(fileName: string) {
+    const session = resumableSessions[fileName]
+    if (!session) return
+
+    setUploadProgress((current) => {
+      const nextFiles = current.files.map(f => f.name === fileName ? { ...f, status: 'uploading' as const } : f)
+      return {
+        ...current,
+        status: 'uploading',
+        files: nextFiles
+      }
+    })
+
+    try {
+      const fileIndex = uploadProgress.files.findIndex(f => f.name === fileName)
+      await uploadSingleFileResumable(session.file, session.folderId || null, (filePercent) => {
+        setUploadProgress((current) => {
+          const nextFiles = [...current.files]
+          if (nextFiles[fileIndex]) {
+            nextFiles[fileIndex] = { ...nextFiles[fileIndex], percent: filePercent, status: filePercent >= 100 ? 'done' : 'uploading' }
+          }
+          const overallPercent = Math.round(nextFiles.reduce((sum, f) => sum + f.percent, 0) / nextFiles.length)
+          const allDone = nextFiles.every(f => f.status === 'done')
+          return {
+            ...current,
+            percent: overallPercent,
+            status: allDone ? 'done' : 'uploading',
+            files: nextFiles
+          }
+        })
+      }, session.sessionId)
+
+      await loadFiles()
+      window.dispatchEvent(new Event('9drive:storage-changed'))
+    } catch (err) {
+      console.error('Retry upload failed:', fileName, err)
+      setUploadProgress((current) => {
+        const nextFiles = current.files.map(f => f.name === fileName ? { ...f, status: 'error' as const } : f)
+        return {
+          ...current,
+          status: 'partial',
+          files: nextFiles
+        }
+      })
+    }
+  }
+
 
   async function syncGoogleDrive() {
     setSyncingDrive(true)
@@ -269,27 +405,7 @@ export function AllFilesPage() {
     if (event.type === 'drop') selectUploadFiles(event.dataTransfer.files)
   }
 
-  function uploadWithProgress(form: FormData, onProgress: (percent: number) => void) {
-    return new Promise<UploadResult>((resolve, reject) => {
-      const request = new XMLHttpRequest()
-      request.open('POST', `${API_URL}/uploads`)
-      const token = getAccessToken()
-      if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
-      request.upload.onprogress = (event) => {
-        if (!event.lengthComputable) return
-        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)))
-      }
-      request.onload = () => {
-        if (request.status >= 200 && request.status < 300) resolve(JSON.parse(request.responseText || '{}') as UploadResult)
-        else {
-          const error = JSON.parse(request.responseText || '{}') as { message?: string }
-          reject(new Error(error.message ?? 'Upload failed'))
-        }
-      }
-      request.onerror = () => reject(new Error('Upload failed'))
-      request.send(form)
-    })
-  }
+
 
   function openContext(event: MouseEvent<HTMLElement>, file: FileItem) {
     event.preventDefault()
@@ -379,6 +495,38 @@ export function AllFilesPage() {
     URL.revokeObjectURL(url)
     setContextMenu({ x: 0, y: 0, file: null })
   }
+
+  async function downloadBatchAsZip() {
+    const selectedIds = [...selectedFileIds]
+    if (selectedIds.length === 0) return
+    setLoading(true)
+    setMessage('')
+    try {
+      const response = await fetch(`${API_URL}/files/batch-download`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAccessToken()}`
+        },
+        body: JSON.stringify({ fileIds: selectedIds })
+      })
+      if (!response.ok) throw new Error('Failed to download ZIP file')
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = '9drive-download.zip'
+      link.click()
+      URL.revokeObjectURL(url)
+      clearSelection()
+      setMessage('Batch download complete.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Batch download failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
 
   async function renameFile(event: FormEvent) {
     event.preventDefault()
@@ -526,7 +674,7 @@ export function AllFilesPage() {
       {!activeFolder && moreFolders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">More Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{moreFolders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
       {activeFolder && folders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{folders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
       <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3"><Button variant="soft" className="hidden sm:inline-flex"><Archive className="h-4 w-4" />Recents</Button><Button variant="soft" className="hidden sm:inline-flex"><Star className="h-4 w-4" />Starred</Button>{selectedFileIds.size > 0 ? <div className="flex w-full flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:w-auto sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0"><span className="text-sm font-extrabold text-slate-700">{selectedFileIds.size} selected</span><div className="grid grid-cols-3 gap-2 sm:flex sm:gap-3"><Button className="w-full" variant="outline" onClick={() => setMoveOpen(true)}><FolderInput className="h-4 w-4" />Move</Button><Button className="w-full" variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />Delete</Button><Button className="w-full" variant="ghost" onClick={clearSelection}>Clear</Button></div></div> : null}</div>
+        <div className="flex flex-wrap items-center gap-3"><Button variant="soft" className="hidden sm:inline-flex"><Archive className="h-4 w-4" />Recents</Button><Button variant="soft" className="hidden sm:inline-flex"><Star className="h-4 w-4" />Starred</Button>{selectedFileIds.size > 0 ? <div className="flex w-full flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:w-auto sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0"><span className="text-sm font-extrabold text-slate-700">{selectedFileIds.size} selected</span><div className="grid grid-cols-4 gap-2 sm:flex sm:gap-3"><Button className="w-full" variant="outline" onClick={downloadBatchAsZip}><Download className="h-4 w-4" />ZIP</Button><Button className="w-full" variant="outline" onClick={() => setMoveOpen(true)}><FolderInput className="h-4 w-4" />Move</Button><Button className="w-full" variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />Delete</Button><Button className="w-full" variant="ghost" onClick={clearSelection}>Clear</Button></div></div> : null}</div>
         <div className="flex gap-3"><Button variant={fileViewMode === 'grid' ? 'soft' : 'outline'} size="icon" aria-label="Show files as grid" aria-pressed={fileViewMode === 'grid'} onClick={() => changeFileViewMode('grid')}><LayoutGrid className="h-5 w-5" /></Button><Button variant={fileViewMode === 'list' ? 'soft' : 'outline'} size="icon" aria-label="Show files as list" aria-pressed={fileViewMode === 'list'} onClick={() => changeFileViewMode('list')}><List className="h-5 w-5" /></Button></div>
       </div>
       {cutFolder ? <p className="mt-5 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-700"><ClipboardPaste className="mr-2 inline h-4 w-4" />Cut folder: {cutFolder.name}. Press Ctrl+V or right-click empty area to paste here.</p> : null}
@@ -602,7 +750,7 @@ export function AllFilesPage() {
             <div className="mt-3 h-2 rounded-full bg-slate-100">
               <div className={uploadProgress.status === 'error' || uploadProgress.status === 'partial' ? 'h-full rounded-full bg-red-500' : uploadProgress.status === 'done' ? 'h-full rounded-full bg-emerald-500' : 'h-full rounded-full bg-blue-600'} style={{ width: `${uploadProgress.percent}%` }} />
             </div>
-            {uploadProgress.files.length > 0 ? <div className="mt-4 grid max-h-64 gap-3 overflow-y-auto pr-1">{uploadProgress.files.map((file, index) => <div key={`${file.name}-${file.size}-${index}`} className="grid gap-1 rounded-xl bg-slate-50 p-3"><div className="flex min-w-0 items-center justify-between gap-3 text-sm"><p className="min-w-0 flex-1 truncate font-semibold" title={file.name}>{file.name}</p><span className="shrink-0 text-xs text-slate-500">{file.percent}%</span></div><div className="flex items-center justify-between gap-3 text-xs text-slate-500"><span>{formatBytes(file.size)}</span><span className={file.status === 'error' ? 'font-semibold text-red-600' : file.status === 'done' ? 'font-semibold text-emerald-600' : 'font-semibold text-blue-600'}>{file.status === 'error' ? 'Failed' : file.status === 'done' ? 'Done' : file.percent >= 99 ? 'Processing' : 'Uploading'}</span></div><div className="h-1.5 rounded-full bg-slate-200"><div className={file.status === 'error' ? 'h-full rounded-full bg-red-500' : file.status === 'done' ? 'h-full rounded-full bg-emerald-500' : 'h-full rounded-full bg-blue-600'} style={{ width: `${file.percent}%` }} /></div></div>)}</div> : null}
+            {uploadProgress.files.length > 0 ? <div className="mt-4 grid max-h-64 gap-3 overflow-y-auto pr-1">{uploadProgress.files.map((file, index) => <div key={`${file.name}-${file.size}-${index}`} className="grid gap-1 rounded-xl bg-slate-50 p-3"><div className="flex min-w-0 items-center justify-between gap-3 text-sm"><p className="min-w-0 flex-1 truncate font-semibold" title={file.name}>{file.name}</p><span className="shrink-0 text-xs text-slate-500">{file.percent}%</span></div><div className="flex items-center justify-between gap-3 text-xs text-slate-500"><span>{formatBytes(file.size)}</span><div className="flex items-center gap-2">{file.status === 'error' && <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] font-extrabold text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => retryFailedUpload(file.name)}>Retry</Button>}<span className={file.status === 'error' ? 'font-semibold text-red-600' : file.status === 'done' ? 'font-semibold text-emerald-600' : 'font-semibold text-blue-600'}>{file.status === 'error' ? 'Failed' : file.status === 'done' ? 'Done' : file.percent >= 99 ? 'Processing' : 'Uploading'}</span></div></div><div className="h-1.5 rounded-full bg-slate-200"><div className={file.status === 'error' ? 'h-full rounded-full bg-red-500' : file.status === 'done' ? 'h-full rounded-full bg-emerald-500' : 'h-full rounded-full bg-blue-600'} style={{ width: `${file.percent}%` }} /></div></div>)}</div> : null}
           </div>
         </div>
       ) : null}

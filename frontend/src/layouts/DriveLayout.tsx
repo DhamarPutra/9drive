@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   Star,
   Sun,
+  Trash2,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ const menu = [
   { label: 'Quota Tracker', icon: Gauge, href: '/quota' },
   { label: 'Shared With Me', icon: Share2, href: '/shared' },
   { label: 'Starred', icon: Star, href: '/starred', disabled: true },
+  { label: 'Recycle Bin', icon: Trash2, href: '/trash' },
 ]
 
 type StorageSummary = {

@@ -14,6 +14,7 @@ import { SharedPage } from '@/pages/SharedPage'
 import { StarredPage } from '@/pages/StarredPage'
 import { PublicFilePage } from '@/pages/PublicFilePage'
 import { ApiManagementPage } from '@/pages/ApiManagementPage'
+import { TrashPage } from '@/pages/TrashPage'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
           <Route path="recent" element={<RecentPage />} />
           <Route path="starred" element={<StarredPage />} />
           <Route path="archived" element={<ArchivedPage />} />
+          <Route path="trash" element={<TrashPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="api" element={<ApiManagementPage />} />
         </Route>
@@ -41,5 +43,6 @@ function App() {
     </Routes>
   )
 }
+
 
 export default App
