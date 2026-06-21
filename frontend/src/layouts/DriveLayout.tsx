@@ -35,15 +35,26 @@ import { getGravatarUrl } from '@/lib/gravatar'
 import { cn } from '@/lib/utils'
 
 const menu = [
-  { label: 'All Files', icon: FileArchive, href: '/all-files' },
-  { label: 'Quota Tracker', icon: Gauge, href: '/quota' },
-  { label: 'Shared With Me', icon: Share2, href: '/shared' },
-  { label: 'Starred', icon: Star, href: '/starred', disabled: true },
-  { label: 'Recycle Bin', icon: Trash2, href: '/trash' },
-  { label: 'Activity Log', icon: History, href: '/activity' },
-  { label: 'Setting', icon: Settings, href: '/settings' },
-  { label: 'API Keys', icon: Braces, href: '/api' },
+  { label: 'All Files', icon: FileArchive, href: '/all-files', color: 'blue' },
+  { label: 'Quota Tracker', icon: Gauge, href: '/quota', color: 'emerald' },
+  { label: 'Shared With Me', icon: Share2, href: '/shared', color: 'indigo' },
+  { label: 'Starred', icon: Star, href: '/starred', disabled: true, color: 'amber' },
+  { label: 'Recycle Bin', icon: Trash2, href: '/trash', color: 'rose' },
+  { label: 'Activity Log', icon: History, href: '/activity', color: 'cyan' },
+  { label: 'Setting', icon: Settings, href: '/settings', color: 'slate' },
+  { label: 'API Keys', icon: Braces, href: '/api', color: 'orange' },
 ]
+
+const activeNavClasses: Record<string, string> = {
+  blue: 'bg-blue-600/10 text-blue-600 border-blue-600/10 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/20 shadow-sm',
+  emerald: 'bg-emerald-600/10 text-emerald-600 border-emerald-600/10 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/20 shadow-sm',
+  indigo: 'bg-indigo-600/10 text-indigo-600 border-indigo-600/10 dark:bg-indigo-500/15 dark:text-indigo-400 dark:border-indigo-500/20 shadow-sm',
+  amber: 'bg-amber-600/10 text-amber-600 border-amber-600/10 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/20 shadow-sm',
+  rose: 'bg-rose-600/10 text-rose-600 border-rose-600/10 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/20 shadow-sm',
+  cyan: 'bg-cyan-600/10 text-cyan-600 border-cyan-600/10 dark:bg-cyan-500/15 dark:text-cyan-400 dark:border-cyan-500/20 shadow-sm',
+  slate: 'bg-slate-600/10 text-slate-600 border-slate-600/10 dark:bg-slate-500/15 dark:text-slate-400 dark:border-slate-500/20 shadow-sm',
+  orange: 'bg-orange-600/10 text-orange-600 border-orange-600/10 dark:bg-orange-500/15 dark:text-orange-400 dark:border-orange-500/20 shadow-sm',
+}
 
 type StorageSummary = {
   totalBytes: string
@@ -146,7 +157,7 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
             {item.label}
           </button>
         ) : (
-          <NavLink key={item.label} to={item.href} onClick={onNavigate} className={({ isActive }) => cn('inline-flex h-10 items-center gap-2.5 rounded-xl px-3.5 text-[13px] font-bold transition-all border border-transparent', isActive ? 'bg-blue-600/10 text-blue-600 border-blue-600/10 shadow-sm' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900')}>
+          <NavLink key={item.label} to={item.href} onClick={onNavigate} className={({ isActive }) => cn('inline-flex h-10 items-center gap-2.5 rounded-xl px-3.5 text-[13px] font-bold transition-all border border-transparent', isActive ? activeNavClasses[item.color || 'blue'] : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900')}>
             <item.icon className="h-4 w-4" />
             {item.label}
           </NavLink>

@@ -27,10 +27,10 @@ type BackendFolder = { id: string; name: string; color: string; iconUrl?: string
 type ConnectedAccount = { id: string; provider: string; email: string; displayName?: string | null; status: string }
 
 const sizeActiveClasses: Record<FolderSizeScale, string> = {
-  xs: 'bg-white text-slate-800 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30 shadow-sm dark:shadow-none',
-  sm: 'bg-white text-slate-800 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/30 shadow-sm dark:shadow-none',
-  md: 'bg-white text-slate-800 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30 shadow-sm dark:shadow-none',
-  lg: 'bg-white text-slate-800 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30 shadow-sm dark:shadow-none'
+  xs: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30 shadow-sm dark:shadow-none',
+  sm: 'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/30 shadow-sm dark:shadow-none',
+  md: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30 shadow-sm dark:shadow-none',
+  lg: 'bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30 shadow-sm dark:shadow-none'
 }
 
 type FileViewMode = 'list' | 'grid'
