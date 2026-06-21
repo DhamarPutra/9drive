@@ -351,3 +351,53 @@ button.border-slate-200:hover,
 .drive-preview-video-shell video {
   object-fit: contain;
 }
+
+/* Sidebar Storage Card Redesign */
+aside .card {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  box-shadow: 0 4px 20px var(--shadow-color) !important;
+  padding: 1.25rem !important;
+}
+
+/* Status Indicator Dots */
+aside .card span.flex.items-center span.rounded {
+  border-radius: 9999px !important;
+  box-shadow: 0 0 10px currentColor !important;
+  transform: scale(0.95);
+}
+
+/* Glowing Gradient Progress Bar */
+aside .card .bg-slate-100 {
+  background-color: var(--slate-100-override) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+aside .card .bg-slate-100 > .bg-blue-600 {
+  background: linear-gradient(90deg, #6366f1 0%, #3b82f6 100%) !important;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.6) !important;
+  border-radius: 9999px !important;
+}
+
+/* Log Out Button Contrast Override */
+aside .card button.text-orange-600 {
+  color: #ff6b6b !important;
+  background: rgba(239, 68, 68, 0.06) !important;
+  border: 1px solid rgba(239, 68, 68, 0.15) !important;
+  width: 100% !important;
+  transition: all 0.2s ease-in-out !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.5rem !important;
+  font-weight: 600 !important;
+}
+
+aside .card button.text-orange-600:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #ff8787 !important;
+  transform: translateY(-1px);
+}
+

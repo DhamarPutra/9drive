@@ -65,7 +65,9 @@ export function SettingsPage() {
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin || event.data?.type !== 'GOOGLE_CONNECTED') return
       setMessage(event.data.status === 'success' ? 'Google Drive connected.' : 'Google Drive connection failed.')
-      load().catch(() => undefined)
+      load().then(() => {
+        window.dispatchEvent(new Event('9drive:storage-changed'))
+      }).catch(() => undefined)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -90,6 +92,7 @@ export function SettingsPage() {
     try {
       await apiFetch(`/connected-accounts/${accountId}/sync-quota`, { method: 'POST' })
       await load()
+      window.dispatchEvent(new Event('9drive:storage-changed'))
     } finally {
       setSyncingAccountId(null)
     }
@@ -104,6 +107,7 @@ export function SettingsPage() {
       setAccountToDisconnect(null)
       setMessage('Storage account disconnected.')
       await load()
+      window.dispatchEvent(new Event('9drive:storage-changed'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to disconnect Google Drive account')
     } finally {
@@ -121,6 +125,7 @@ export function SettingsPage() {
       setS3Form({ name: '', bucket: '', region: 'us-east-1', endpoint: '', accessKeyId: '', secretAccessKey: '', forcePathStyle: false, quotaBytes: '' })
       setMessage('S3 storage connected.')
       await load()
+      window.dispatchEvent(new Event('9drive:storage-changed'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to connect S3 storage')
     } finally {
