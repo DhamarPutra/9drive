@@ -444,6 +444,7 @@ uploadRouter.put('/resumable/chunk/:id', requireAuth, async (req: AuthRequest, r
           data: {
             userId: req.user!.id,
             connectedAccountId: account.id,
+            folderId: session.folderId,
             provider: 'google_drive',
             providerFileId: fileMeta.id,
             name: fileMeta.name || session.fileName,
