@@ -70,6 +70,30 @@ systemRouter.post('/update', requireAuth, (req, res, next) => {
   })
 })
 
+systemRouter.get('/update-log', requireAuth, (req, res) => {
+  const projectRoot = path.resolve(process.cwd(), '..')
+  const logFile = path.join(projectRoot, 'update.log')
+
+  if (!fs.existsSync(logFile)) {
+    return res.json({
+      log: 'No update history found.'
+    })
+  }
+
+  try {
+    const logContent = fs.readFileSync(logFile, 'utf8')
+    return res.json({
+      log: logContent
+    })
+  } catch (error: any) {
+    return res.status(500).json({
+      code: 'READ_LOG_FAILED',
+      message: 'Failed to read update log file.',
+      error: error.message
+    })
+  }
+})
+
 systemRouter.get('/google-config', requireAuth, async (req, res, next) => {
   try {
     const config = await prisma.providerConfig.findFirst({

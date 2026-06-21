@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, useRef, type FormEvent } from 'react'
 import { Bell, Cloud, Database, Globe, HardDrive, Link2, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -42,7 +42,6 @@ export function SettingsPage() {
   const [updatingSystem, setUpdatingSystem] = useState(false)
   const [updateModalOpen, setUpdateModalOpen] = useState(false)
   const [updateModalTitle, setUpdateModalTitle] = useState('')
-  const [updateModalMessage, setUpdateModalMessage] = useState('')
 
   // Google OAuth Config states
   const [googleClientId, setGoogleClientId] = useState('')
@@ -53,18 +52,74 @@ export function SettingsPage() {
   const [savingGoogleConfig, setSavingGoogleConfig] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
 
+  // Live log polling states
+  const [isPollingLog, setIsPollingLog] = useState(false)
+  const [updateLog, setUpdateLog] = useState('')
+  const [updateFinished, setUpdateFinished] = useState(false)
+  const [updateSuccess, setUpdateSuccess] = useState<boolean | null>(null)
+  const [reconnectCount, setReconnectCount] = useState(0)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isPollingLog) return
+
+    let intervalId: any
+    let active = true
+
+    async function fetchLog() {
+      try {
+        const data = await apiFetch<{ log: string }>('/system/update-log')
+        if (!active) return
+
+        setUpdateLog(data.log)
+        setReconnectCount(0)
+
+        if (data.log.includes('=== System Update Completed:')) {
+          setUpdateFinished(true)
+          setUpdateSuccess(true)
+          setIsPollingLog(false)
+          setUpdateModalTitle('System Updated')
+        }
+      } catch (err) {
+        if (!active) return
+        setReconnectCount((prev) => prev + 1)
+      }
+    }
+
+    fetchLog()
+    intervalId = setInterval(fetchLog, 2000)
+
+    return () => {
+      active = false
+      clearInterval(intervalId)
+    }
+  }, [isPollingLog])
+
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [updateLog])
+
   async function runSystemUpdate() {
     setUpdatingSystem(true)
     setMessage('')
+    setUpdateLog('Initiating system update in the background...\n')
+    setUpdateFinished(false)
+    setUpdateSuccess(null)
+    setReconnectCount(0)
+    setUpdateModalTitle('System Updating')
+    setUpdateModalOpen(true)
+
     try {
-      const data = await apiFetch<{ message: string }>('/system/update', { method: 'POST' })
-      setUpdateModalTitle('System Updated')
-      setUpdateModalMessage(data.message || 'System updated successfully. Reloading...')
-      setUpdateModalOpen(true)
+      await apiFetch<{ message: string }>('/system/update', { method: 'POST' })
+      setIsPollingLog(true)
     } catch (error) {
       setUpdateModalTitle('System Update Failed')
-      setUpdateModalMessage(error instanceof Error ? error.message : 'System update failed')
-      setUpdateModalOpen(true)
+      const errMsg = error instanceof Error ? error.message : 'System update failed to initiate.'
+      setUpdateLog((prev) => prev + `\nError: ${errMsg}`)
+      setUpdateFinished(true)
+      setUpdateSuccess(false)
     } finally {
       setUpdatingSystem(false)
     }
@@ -409,29 +464,63 @@ export function SettingsPage() {
       <DummyModal
         open={updateModalOpen}
         title={updateModalTitle}
-        description={updateModalTitle === 'System Updated' ? 'Update Status' : 'Troubleshooting details'}
+        description={
+          updateFinished
+            ? (updateSuccess ? 'System updated successfully' : 'Update failed')
+            : 'Live installation logs'
+        }
+        className="max-w-2xl"
         onClose={() => {
+          if (!updateFinished) {
+            if (!confirm('The update is still running in the background. Close log viewer?')) {
+              return
+            }
+          }
           setUpdateModalOpen(false)
-          if (updateModalTitle === 'System Updated') {
+          setIsPollingLog(false)
+          if (updateFinished && updateSuccess) {
             window.location.reload()
           }
         }}
       >
         <div className="grid gap-4">
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-950/40 p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line border border-slate-100 dark:border-slate-800">
-            {updateModalMessage}
+          <div 
+            ref={logContainerRef}
+            className="relative rounded-xl bg-slate-950 p-4 font-mono text-xs text-slate-300 leading-relaxed border border-slate-800 h-80 overflow-y-auto select-text"
+          >
+            <pre className="whitespace-pre-wrap">{updateLog}</pre>
+            {!updateFinished && (
+              <div className="mt-3 flex items-center gap-2 text-blue-400">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                <span>
+                  {reconnectCount > 0
+                    ? `Rebooting server and reconnecting... (attempt ${reconnectCount})`
+                    : 'Installing updates...'}
+                </span>
+              </div>
+            )}
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <Button
+              variant="outline"
               onClick={() => {
+                if (!updateFinished) {
+                  if (!confirm('The update is still running. Close log viewer?')) return
+                }
                 setUpdateModalOpen(false)
-                if (updateModalTitle === 'System Updated') {
+                setIsPollingLog(false)
+                if (updateFinished && updateSuccess) {
                   window.location.reload()
                 }
               }}
             >
-              Dismiss
+              Close
             </Button>
+            {updateFinished && updateSuccess && (
+              <Button onClick={() => window.location.reload()}>
+                Reload Page
+              </Button>
+            )}
           </div>
         </div>
       </DummyModal>
