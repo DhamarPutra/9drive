@@ -506,10 +506,22 @@ export function AllFilesPage() {
 
   async function copyShareLinkDirect() {
     if (!activeFile?.id) return
-    const data = await apiFetch<{ url: string }>(`/files/${activeFile.id}/share`, { method: 'POST' })
-    await navigator.clipboard.writeText(data.url)
-    setMessage('Share link copied to clipboard!')
-    setTimeout(() => setMessage(''), 2500)
+    try {
+      const data = await apiFetch<{ url: string | null }>(`/files/${activeFile.id}/view-url`)
+      if (data.url) {
+        await navigator.clipboard.writeText(data.url)
+        setMessage('Google Drive link copied to clipboard!')
+        setTimeout(() => setMessage(''), 2500)
+      } else {
+        const shareData = await apiFetch<{ url: string }>(`/files/${activeFile.id}/share`, { method: 'POST' })
+        await navigator.clipboard.writeText(shareData.url)
+        setMessage('Share link copied to clipboard!')
+        setTimeout(() => setMessage(''), 2500)
+      }
+    } catch (err: any) {
+      setMessage('Failed to copy link: ' + (err.message || err))
+      setTimeout(() => setMessage(''), 2500)
+    }
     setContextMenu({ x: 0, y: 0, file: null })
   }
 
