@@ -49,10 +49,21 @@ async function selectAccount(userId: string, sizeBytes: bigint, reservedBytesByA
   })
 
   const stale = accounts.filter((account) => !account.storageAccount?.lastSyncedAt || account.storageAccount.lastSyncedAt.getTime() < Date.now() - 5 * 60_000)
-  for (const account of stale) {
-    if (account.provider === 's3') await syncS3Quota(account.id)
-    else await syncGoogleQuota(account.id)
-  }
+  await Promise.allSettled(stale.map(async (account) => {
+    try {
+      if (account.provider === 's3') {
+        await syncS3Quota(account.id)
+      } else {
+        await syncGoogleQuota(account.id)
+      }
+    } catch (err: any) {
+      console.error(`[upload] failed to sync quota for account ${account.email} (${account.id}):`, err.message || err)
+      await prisma.connectedAccount.update({
+        where: { id: account.id },
+        data: { lastError: err.message || 'Quota sync failed' }
+      }).catch(() => undefined)
+    }
+  }))
 
   const fresh = await prisma.connectedAccount.findMany({
     where: { userId, provider: { in: ['google_drive', 's3'] }, status: 'connected' },
