@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DummyModal } from '@/components/drive/DummyModal'
 import { PageHeader } from '@/components/drive/PageHeader'
-import { apiFetch, formatBytes } from '@/lib/api'
+import { apiFetch, formatBytes, API_URL } from '@/lib/api'
 import { getGravatarUrl } from '@/lib/gravatar'
 import { getStoredUser, getAccessToken, clearAuthSession } from '@/lib/auth'
 
@@ -71,7 +71,7 @@ export function SettingsPage() {
     setDownloadingBackup(true)
     try {
       const token = getAccessToken()
-      const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/system/backup`, {
+      const response = await fetch(`${API_URL}/system/backup`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -118,7 +118,7 @@ export function SettingsPage() {
       const formData = new FormData()
       formData.append('file', restoreFile)
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/system/restore`, {
+      const response = await fetch(`${API_URL}/system/restore`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
