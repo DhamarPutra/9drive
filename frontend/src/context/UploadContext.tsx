@@ -32,6 +32,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     let sessionId = sessionIdToRetry || ''
     let startOffset = 0
 
+    // Pre-save session parameters so that retry is functional even if the init API call fails
+    setResumableSessions(prev => ({
+      ...prev,
+      [file.name]: { sessionId, file, folderId, targetAccountId }
+    }))
+
     // 1. Initialize or get status
     if (!sessionId) {
       const initData = await apiFetch<{ sessionId: string; provider: string }>('/uploads/resumable/init', {
@@ -45,7 +51,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         })
       })
       sessionId = initData.sessionId
-      // Save session mapping to state in case it fails and needs retry
+      // Update session with the active sessionId
       setResumableSessions(prev => ({
         ...prev,
         [file.name]: { sessionId, file, folderId, targetAccountId }
