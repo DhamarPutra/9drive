@@ -1,27 +1,43 @@
 #!/bin/bash
+set -u
+
 # Go to the project root directory
 cd "$(dirname "$0")"
 PROJECT_ROOT="$(pwd)"
 LOG_FILE="$PROJECT_ROOT/update.log"
 
+log() {
+  echo "$1" >> "$LOG_FILE"
+}
+
+run_step() {
+  local description="$1"
+  shift
+  log "$description"
+  "$@" >> "$LOG_FILE" 2>&1
+  local status=$?
+  if [ "$status" -ne 0 ]; then
+    log "ERROR: Step failed with exit code ${status}: $description"
+    log "=== System Update Failed: $(date) ==="
+    exit "$status"
+  fi
+}
+
 echo "=== System Update Started: $(date) ===" > "$LOG_FILE"
 
-echo "1. Pulling latest code from GitHub..." >> "$LOG_FILE"
-git reset --hard >> "$LOG_FILE" 2>&1
-git pull >> "$LOG_FILE" 2>&1
+run_step "0. Checking GitHub access..." git ls-remote --exit-code origin main
+run_step "1. Pulling latest code from GitHub..." git pull --ff-only origin main
 
-echo "2. Installing backend dependencies and building..." >> "$LOG_FILE"
 cd "$PROJECT_ROOT/backend"
-npm install >> "$LOG_FILE" 2>&1
-npx prisma generate >> "$LOG_FILE" 2>&1
-npm run build >> "$LOG_FILE" 2>&1
-npx prisma migrate deploy >> "$LOG_FILE" 2>&1
+run_step "2. Installing backend dependencies..." npm install
+run_step "3. Generating Prisma client..." npx prisma generate
+run_step "4. Building backend..." npm run build
+run_step "5. Applying database migrations..." npx prisma migrate deploy
 
-echo "3. Installing frontend dependencies and building..." >> "$LOG_FILE"
 cd "$PROJECT_ROOT/frontend"
-npm install >> "$LOG_FILE" 2>&1
-npm run build >> "$LOG_FILE" 2>&1
+run_step "6. Installing frontend dependencies..." npm install
+run_step "7. Building frontend..." npm run build
 
-echo "4. Restarting application via PM2..." >> "$LOG_FILE"
+log "8. Restarting application via PM2..."
+run_step "8. Restarting 9drive-backend..." pm2 restart 9drive-backend --update-env
 echo "=== System Update Completed: $(date) ===" >> "$LOG_FILE"
-pm2 restart 9drive-backend >> "$LOG_FILE" 2>&1
