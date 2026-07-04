@@ -242,7 +242,7 @@ Commands:
 
 Docker notes:
 - MySQL image is `mysql:8.4`.
-- Backend listens on `4000`.
+- Backend listens on `5174`.
 - Frontend build is served by nginx on host port `5173`.
 - Frontend build arg `VITE_API_URL` is embedded at build time.
 - Rebuild frontend when `VITE_API_URL` changes.
