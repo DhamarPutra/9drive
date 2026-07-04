@@ -184,12 +184,6 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
         passThrough.on('data', (chunk: Buffer) => {
           streamedBytes += BigInt(chunk.length)
         })
-        await new Promise<void>((resolve, reject) => {
-          fileStream.on('end', resolve)
-          fileStream.on('error', reject)
-        })
-        const fileBuffer = Buffer.concat(chunks)
-        const streamedBytes = BigInt(fileBuffer.length)
 
         let providerFileId = ''
         let s3FileId: string | null = null
