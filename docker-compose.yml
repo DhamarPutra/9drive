@@ -14,6 +14,8 @@ services:
       retries: 5
     ports:
       - "127.0.0.1:3306:3306"
+    networks:
+      - fujiwara-backend
 
   backend:
     build:
@@ -36,6 +38,9 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:5174/connected-accounts/google/callback}
     ports:
       - "5174:5174"
+    networks:
+      - fujiwara-backend
+      - fujiwara-app
 
   frontend:
     build:
@@ -48,6 +53,17 @@ services:
       - backend
     ports:
       - "5173:80"
+    networks:
+      - fujiwara-app
+      - fujiwara-public
+
+networks:
+  fujiwara-public:
+    external: true
+  fujiwara-app:
+    external: true
+  fujiwara-backend:
+    external: true
 
 volumes:
   mysql_data:
