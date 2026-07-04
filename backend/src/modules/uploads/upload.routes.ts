@@ -1,4 +1,5 @@
 import Busboy from 'busboy'
+import { PassThrough } from 'node:stream'
 import type { NextFunction, Response } from 'express'
 import { Router } from 'express'
 import { google } from 'googleapis'
@@ -153,8 +154,9 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
 
         const session = await prisma.uploadSession.create({ data: { userId: req.user!.id, targetConnectedAccountId: account.id, fileName, mimeType: meta.mimeType, sizeBytes: meta.sizeBytes, status: 'uploading' } })
         logUpload('file upload started', { sessionId: session.id, accountId: account.id, fileName, sizeBytes: meta.sizeBytes.toString() })
+        const passThrough = new PassThrough()
         let streamedBytes = 0n
-        fileStream.on('data', (chunk: Buffer) => {
+        passThrough.on('data', (chunk: Buffer) => {
           streamedBytes += BigInt(chunk.length)
         })
 
@@ -169,7 +171,9 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
           })
           s3FileId = provisionalFile.id
           providerFileId = buildS3ObjectKey(config, req.user!.id, provisionalFile.id, fileName)
-          await uploadS3Object(config, providerFileId, fileStream, meta.mimeType)
+          
+          fileStream.pipe(passThrough)
+          await uploadS3Object(config, providerFileId, passThrough, meta.mimeType)
           await prisma.file.update({ where: { id: provisionalFile.id }, data: { providerFileId, status: 'active' } })
           completed.push({ ...provisionalFile, providerFileId, status: 'active', sizeBytes: provisionalFile.sizeBytes.toString() })
           logUpload('s3 upload completed', { sessionId: session.id, accountId: account.id, fileName })
@@ -177,9 +181,11 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
           const auth = await getAuthedGoogleClient(account)
           const drive = google.drive({ version: 'v3', auth })
           const appFolderId = await ensureGoogleAppFolder(account)
+          
+          fileStream.pipe(passThrough)
           const uploaded = await drive.files.create({
             requestBody: { name: fileName, parents: [appFolderId] },
-            media: { mimeType: meta.mimeType, body: fileStream },
+            media: { mimeType: meta.mimeType, body: passThrough },
             fields: 'id,name,mimeType,size',
           })
           providerFileId = uploaded.data.id ?? ''

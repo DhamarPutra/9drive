@@ -65,8 +65,14 @@ connectedAccountRouter.get('/', requireAuth, async (req: AuthRequest, res, next)
 async function createGoogleConnectUrl(req: AuthRequest) {
   const query = z.object({ providerConfigId: z.string().min(1).optional() }).parse(req.query)
   const config = query.providerConfigId
-    ? await prisma.providerConfig.findFirstOrThrow({ where: { id: query.providerConfigId, OR: [{ userId: req.user!.id }, { userId: null }], provider: 'google_drive', status: 'active' } })
-    : await prisma.providerConfig.findFirstOrThrow({ where: { userId: null, provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+    ? await prisma.providerConfig.findFirst({ where: { id: query.providerConfigId, OR: [{ userId: req.user!.id }, { userId: null }], provider: 'google_drive', status: 'active' } })
+    : await prisma.providerConfig.findFirst({ where: { userId: null, provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+  if (!config) {
+    const error = new Error('Google OAuth is not configured. Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env and run npm run seed:google-config.')
+    ;(error as any).statusCode = 503
+    ;(error as any).code = 'GOOGLE_OAUTH_NOT_CONFIGURED'
+    throw error
+  }
   const state = randomToken()
   await prisma.oauthState.create({ data: { userId: req.user!.id, providerConfigId: config.id, flow: 'connect', stateHash: hashToken(state), expiresAt: new Date(Date.now() + 10 * 60_000) } })
   const client = createOAuthClient(config)
@@ -82,7 +88,13 @@ async function createGoogleConnectUrl(req: AuthRequest) {
 connectedAccountRouter.post('/s3', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const body = s3ConnectSchema.parse(req.body)
-    const providerConfig = await prisma.providerConfig.findFirstOrThrow({ where: { provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+    const providerConfig = await prisma.providerConfig.findFirst({ where: { provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+    if (!providerConfig) {
+      return res.status(503).json({
+        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+        message: 'Google OAuth has not been configured yet. Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env and run npm run seed:google-config.'
+      })
+    }
     const providerAccountId = `${body.bucket}:${body.endpoint || body.region}`
     const existingAccount = await prisma.connectedAccount.findUnique({ where: { userId_provider_providerAccountId: { userId: req.user!.id, provider: 's3', providerAccountId } } })
     const account = existingAccount

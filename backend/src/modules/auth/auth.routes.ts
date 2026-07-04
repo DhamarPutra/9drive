@@ -68,7 +68,13 @@ authRouter.post('/login', async (req, res, next) => {
 
 authRouter.get('/google/url', async (_req, res, next) => {
   try {
-    const config = await prisma.providerConfig.findFirstOrThrow({ where: { userId: null, provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+    const config = await prisma.providerConfig.findFirst({ where: { userId: null, provider: 'google_drive', status: 'active' }, orderBy: { createdAt: 'desc' } })
+    if (!config) {
+      return res.status(503).json({
+        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+        message: 'Google OAuth has not been configured yet. Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env and run npm run seed:google-config.'
+      })
+    }
     const state = randomToken()
     await prisma.oauthState.create({ data: { providerConfigId: config.id, flow: 'login', stateHash: hashToken(state), expiresAt: new Date(Date.now() + 10 * 60_000) } })
     const client = createOAuthClient(config)

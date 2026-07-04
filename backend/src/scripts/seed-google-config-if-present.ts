@@ -2,7 +2,7 @@ import { prisma } from '../config/prisma.js'
 import { encryptText } from '../utils/crypto.js'
 
 const scopes = [
-  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ]
@@ -15,7 +15,7 @@ function isConfigured(value: string | undefined, placeholders: string[]) {
 async function main() {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim()
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim() || 'http://localhost:4000/connected-accounts/google/callback'
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim() || 'http://localhost:5174/connected-accounts/google/callback'
 
   const hasClientId = isConfigured(clientId, ['your-google-client-id', 'your-client-id'])
   const hasClientSecret = isConfigured(clientSecret, ['your-google-client-secret', 'your-client-secret'])

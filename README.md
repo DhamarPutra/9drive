@@ -107,7 +107,7 @@ Create `backend/.env`:
 
 ```env
 DATABASE_URL="mysql://root@localhost:3306/9drive"
-APP_PORT=4000
+APP_PORT=5174
 FRONTEND_URL="http://localhost:5173"
 JWT_ACCESS_SECRET="change-this-jwt-secret-at-least-32-chars"
 TOKEN_ENCRYPTION_KEY="change-this-encryption-key-32bytes!"
@@ -120,7 +120,7 @@ RECAPTCHA_SECRET_KEY=""
 # These values are encrypted and stored in DB as global Google OAuth config.
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
-GOOGLE_REDIRECT_URI="http://localhost:4000/connected-accounts/google/callback"
+GOOGLE_REDIRECT_URI="http://localhost:5174/connected-accounts/google/callback"
 ```
 
 Important:
@@ -135,7 +135,7 @@ Important:
 Create or confirm `frontend/.env`:
 
 ```env
-VITE_API_URL=http://localhost:4000
+VITE_API_URL=http://localhost:5174
 VITE_RECAPTCHA_SITE_KEY=
 ```
 
@@ -277,7 +277,7 @@ http://localhost:5173
 5. Add authorized redirect URI:
 
 ```txt
-http://localhost:4000/connected-accounts/google/callback
+http://localhost:5174/connected-accounts/google/callback
 ```
 
 6. Click Create.
@@ -295,7 +295,7 @@ Put values into `backend/.env`:
 ```env
 GOOGLE_CLIENT_ID="your-client-id"
 GOOGLE_CLIENT_SECRET="your-client-secret"
-GOOGLE_REDIRECT_URI="http://localhost:4000/connected-accounts/google/callback"
+GOOGLE_REDIRECT_URI="http://localhost:5174/connected-accounts/google/callback"
 ```
 
 Then run:
@@ -319,7 +319,7 @@ npm run dev
 Backend runs at:
 
 ```txt
-http://localhost:4000
+http://localhost:5174
 ```
 
 Start frontend:
@@ -370,7 +370,7 @@ MYSQL_ROOT_PASSWORD=root
 MYSQL_DATABASE=9drive
 
 FRONTEND_URL=http://localhost:5173
-VITE_API_URL=http://localhost:4000
+VITE_API_URL=http://localhost:5174
 VITE_RECAPTCHA_SITE_KEY=
 
 JWT_ACCESS_SECRET=replace-with-long-random-secret
@@ -379,7 +379,7 @@ RECAPTCHA_SECRET_KEY=
 
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:4000/connected-accounts/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:5174/connected-accounts/google/callback
 ```
 
 Captcha is disabled when either `VITE_RECAPTCHA_SITE_KEY` or `RECAPTCHA_SECRET_KEY` is empty.
@@ -394,7 +394,7 @@ Services:
 
 ```txt
 frontend: http://localhost:5173
-backend:  http://localhost:4000
+backend:  http://localhost:5174
 mysql:    localhost:3306
 ```
 

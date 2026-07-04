@@ -2,7 +2,7 @@ import { prisma } from '../config/prisma.js'
 import { deleteS3Object } from '../modules/s3/s3.service.js'
 import { hashToken, randomToken } from '../utils/crypto.js'
 
-const apiUrl = process.env.API_URL || 'http://localhost:4000'
+const apiUrl = process.env.API_URL || 'http://localhost:5174'
 
 async function main() {
   const user = await prisma.user.findFirst({ select: { id: true } })
